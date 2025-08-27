@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🚛 Konteyner / Tır Yükleme – Karışık Yük</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  :root{--bg:#0b0b0b;--fg:#f3f3f3;--mut:#a8a8b3;--panel:#121212;--bord:#1f1f1f}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1400px;margin:0 auto;padding:24px}
+  .panel{background:var(--panel);border:1px solid var(--bord);border-radius:16px;padding:16px}
+  /* Sağ paneli genişlettik */
+  .grid-2{display:grid;gap:16px}
+  @media(min-width:1100px){.grid-2{grid-template-columns:7fr 9fr}}
+
+  .field{display:flex;flex-direction:column;gap:8px}
+  .label{font-size:12px;opacity:.9}
+  .input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #3a3a3a;background:#1a1a1a;color:#fff;outline:none;font-size:14px}
+  .hint{font-size:11px;color:var(--mut);line-height:1.35}
+  .ok{color:#34d399}.badText{color:#f87171}
+  .pill{padding:.25rem .6rem;border-radius:999px;border:1px solid #2a2a2a;background:#111;font-size:12px;display:inline-block}
+
+  .kpis{display:grid;gap:14px}
+  @media(min-width:1100px){.kpis{grid-template-columns:repeat(5,1fr)}}
+  .kpi{background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:12px}
+  .btn{padding:10px 12px;border-radius:10px;border:1px solid #3a3a3a;background:#1d4ed8;color:#fff;cursor:pointer}
+  .btn-sm{padding:6px 10px;font-size:12px;border-radius:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-danger{background:#ef4444;border-color:#ef4444}
+  .btn-ghost{background:#2a2a2a;border-color:#2a2a2a;color:#ddd}
+  .btn-toggle{background:#0ea5e9;border-color:#0ea5e9}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #2a2a2a;padding:8px 6px;font-size:13px;vertical-align:middle}
+  th{text-align:left;color:#cfcfcf}
+  .tag{display:inline-block;padding:2px 6px;border-radius:999px;border:1px solid #2a2a2a;font-size:11px}
+  .colorDot{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:6px;border:1px solid #000}
+
+  /* Yerleşim alanı – tam genişlik + okunaklı */
+  #stage{position:relative;width:100%}
+  #containerOuter{position:relative;margin:0 auto;background:#0b0b0b;border-radius:18px;/* max-width kaldırıldı */}
+  #containerOuterFrame{position:absolute;inset:0;border:3px solid #176b47;border-radius:18px;pointer-events:none}
+  #containerInner{position:relative;margin:0 auto;background:#0f0f0f;border:3px solid #176b47;border-radius:18px;overflow:hidden;box-shadow:inset 0 0 0 1px #2a2a2a,0 10px 30px rgba(0,0,0,.25)}
+  #grid{position:absolute;inset:0;background-image:linear-gradient(#2f2f2f 1px,transparent 1px),linear-gradient(90deg,#2f2f2f 1px,transparent 1px);opacity:.42}
+  .box{
+    position:absolute;border-radius:8px;border:1px solid #000;
+    display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.15;
+    color:#fff;padding:3px 4px;font-weight:800;
+    text-shadow:0 0 2px rgba(0,0,0,.8),0 0 6px rgba(0,0,0,.5);
+    letter-spacing:.2px;min-width:20px;min-height:16px;
+  }
+
+  .layer-legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .layer-badge{padding:4px 10px;font-size:12px;color:#fff;border:1px solid #000;border-radius:999px;opacity:.95;backdrop-filter:blur(1px)}
+
+  /* İkonlu dropdown (kısaltıldı) */
+  .select-wrap{position:relative}
+  .select-trigger{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid #3a3a3a;background:#1a1a1a;cursor:pointer}
+  .sel-icon{width:42px;height:28px;display:inline-flex;align-items:center;justify-content:center}
+  .select-list{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 6px);background:#151515;border:1px solid #303030;border-radius:12px;max-height:320px;overflow:auto;display:none}
+  .select-item{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer}
+  .select-item:hover{background:#1e1e1e}
+  .hidden-native{position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none}
+
+  /* Kalem ekle grid */
+  .sku-grid{display:grid;grid-template-columns:repeat(6, minmax(120px,1fr));gap:8px}
+  @media (max-width:900px){.sku-grid{grid-template-columns:repeat(3, minmax(120px,1fr))}}
+  .mini-label{font-size:11px;color:#cfcfcf;margin-bottom:4px}
+  .mini-field{display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+    <h1 style="margin:0;font-size:26px;font-weight:900">🚛 Konteyner / Tır Yükleme – Karışık Yük</h1>
+    <span id="statusPill" class="pill">Hazır</span>
+  </header>
+
+  <div class="grid-2">
+    <!-- SOL: FORM -->
+    <section class="panel">
+      <h2 style="margin:0 0 8px;font-size:18px">Seçim & Girdiler</h2>
+
+      <!-- seçim -->
+      <div class="field">
+        <div class="label">Konteyner / Dorse</div>
+        <div class="select-wrap" id="iconSelect">
+          <button class="select-trigger" type="button" id="selTrigger">
+            <span class="sel-icon" id="selIcon"></span>
+            <span class="sel-label" id="selText"></span>
+            <span style="margin-left:auto;opacity:.6">▾</span>
+          </button>
+          <div class="select-list" id="selList"></div>
+        </div>
+        <select id="containerSelect" class="hidden-native"></select>
+      </div>
+
+      <div class="field">
+        <div class="label">Birim</div>
+        <select id="unit" class="input" style="width:auto">
+          <option value="cm" selected>cm</option>
+          <option value="m">m</option>
+        </select>
+        <div class="hint">• Maks L/W/H: <span id="maxL"></span> / <span id="maxW"></span> / <span id="maxH"></span> • Kapasite: <span id="maxKg"></span></div>
+      </div>
+
+      <!-- ekle -->
+      <div class="panel" style="background:#0f0f0f;border-color:#222;margin-top:10px">
+        <div class="label" style="margin-bottom:6px">Kalem Ekle (L×W×H, Adet, Kg/Parça)</div>
+        <div class="sku-grid">
+          <div class="mini-field"><div class="mini-label">Uzunluk</div><input class="input" id="iL" type="number" step="0.01" placeholder="örn. 120" /></div>
+          <div class="mini-field"><div class="mini-label">Genişlik</div><input class="input" id="iW" type="number" step="0.01" placeholder="örn. 80" /></div>
+          <div class="mini-field"><div class="mini-label">Yükseklik</div><input class="input" id="iH" type="number" step="0.01" placeholder="örn. 14" /></div>
+          <div class="mini-field"><div class="mini-label">Adet</div><input class="input" id="iQ" type="number" step="1" placeholder="örn. 20" /></div>
+          <div class="mini-field"><div class="mini-label">Kg/Parça</div><input class="input" id="iKg" type="number" step="0.1" placeholder="örn. 10" /></div>
+          <div class="mini-field"><div class="mini-label">&nbsp;</div><button id="addItem" class="btn">Ekle</button></div>
+        </div>
+        <div class="hint" style="margin-top:6px">Örn: 120×80×14 ve 150×65×10 gibi kalemleri ekleyip simülasyonu canlı görebilirsin.</div>
+      </div>
+
+      <!-- liste + DÜZELT toggle -->
+      <div class="panel" style="background:#0f0f0f;border-color:#222;margin-top:10px">
+        <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+          <div class="label">Kalem Listesi</div>
+          <div style="display:flex;gap:8px">
+            <button id="editToggle" class="btn btn-toggle">Düzelt</button>
+            <button id="clearItems" class="btn" style="background:#7c3aed">Temizle</button>
+          </div>
+        </div>
+        <div style="overflow:auto;max-height:260px;margin-top:8px">
+          <table id="itemsTable">
+            <thead>
+              <tr>
+                <th>Kalem</th><th>Ölçü (L×W×H)</th><th>Adet</th><th>Kg/Parça</th><th>CBM/Parça</th><th>Renk</th><th style="width:230px">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- genel -->
+      <div class="grid-2">
+        <div class="field">
+          <div class="label">Maks Kat (yük yönü)</div>
+          <input type="number" id="maxLayers" class="input" value="999" min="1" step="1" />
+          <div class="hint">Örn. 3 dersen 4. kat yasak olur</div>
+        </div>
+        <div class="field">
+          <div className="label">Görsel</div>
+          <label class="hint"><input type="checkbox" id="cropUsed" /> Kullanılan uzunluğa göre kırp</label>
+        </div>
+      </div>
+
+      <div id="suggestArea" style="display:none;margin-top:8px">
+        <div class="kpi" id="suggestBox" style="background:#332a0d;border-color:#7c5e19"></div>
+      </div>
+      <div class="hint" style="margin-top:8px">Not: Yükler <b>yan yatırılmaz</b>. Ölçü aşımlarında uygun konteyner/dorse önerilir.</div>
+    </section>
+
+    <!-- SAĞ: GÖRSEL -->
+    <section class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <h3 style="margin:0">Yerleşim (Üstten Görünüm)</h3>
+        <div id="fitInfo" class="hint"></div>
+      </div>
+      <div id="stage">
+        <div id="containerOuter">
+          <div id="containerOuterFrame"></div>
+          <div id="containerInner"><div id="grid"></div></div>
+        </div>
+      </div>
+      <div id="layerLegend" class="layer-legend"></div>
+
+      <div class="kpis" style="margin-top:16px">
+        <div id="weightInfo" class="kpi"></div>
+        <div id="capacityInfo" class="kpi"></div>
+        <div class="kpi"><div class="hint">Kat Sayısı</div><div id="summaryLayers" style="font-weight:700"></div></div>
+        <div class="kpi"><div class="hint">Hacim Kullanımı</div><div id="summaryFill" style="font-weight:700"></div></div>
+        <div id="cbmInfo" class="kpi"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Özet</h3>
+    <div class="kpis">
+      <div class="kpi"><div class="hint">Seçim</div><div id="summaryName" style="font-weight:700"></div></div>
+      <div class="kpi"><div class="hint">Yerleşen</div><div id="summaryPlaced" style="font-weight:700"></div></div>
+      <div class="kpi"><div class="hint">Durum</div><div id="statusText" style="font-weight:700"></div></div>
+      <div class="kpi"><div class="hint">Not</div><div class="hint">Görsel ekipman ölçüsüne sabit; yazılar büyütüldü.</div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* — Veri — */
+const CONTAINERS={ "20DC":{name:"20' DC",L:589.8,W:235.2,H:239.3,maxKg:28200,kind:"container"},
+"40DC":{name:"40' DC",L:1203.2,W:235.2,H:239.3,maxKg:28600,kind:"container"},
+"40HC":{name:"40' HC",L:1203.2,W:235.2,H:269.8,maxKg:28600,kind:"container",hc:true},
+"45HC":{name:"45' HC",L:1355.6,W:235.2,H:269.8,maxKg:29500,kind:"container",hc:true},
+"TIR_TENTE":{name:"Tente Dorse",L:1360,W:245,H:270,maxKg:24000,kind:"trailer"},
+"TIR_FRIGO":{name:"Frigo Dorse",L:1330,W:245,H:250,maxKg:22000,kind:"trailer",frigo:true},
+"TIR_MEGA":{name:"Mega Dorse",L:1360,W:248,H:300,maxKg:24000,kind:"trailer",mega:true},
+"LOWBED":{name:"Lowbed",L:1250,W:255,H:120,maxKg:40000,kind:"lowbed"} };
+const ORDER=["20DC","40DC","40HC","45HC","TIR_TENTE","TIR_FRIGO","TIR_MEGA","LOWBED"];
+const LAYER_COLORS=["rgba(16,185,129,0.90)","rgba(59,130,246,0.92)","rgba(234,179,8,0.95)","rgba(168,85,247,0.95)","rgba(244,114,182,0.95)"];
+const ITEM_COLORS=["#38bdf8","#f97316","#22c55e","#e879f9","#f43f5e","#a3e635","#f59e0b","#60a5fa"];
+
+/* — DOM — */
+const sel=document.getElementById('containerSelect');
+const unitSel=document.getElementById('unit');
+const cropUsed=document.getElementById('cropUsed');
+const inMaxLayers=document.getElementById('maxLayers');
+const maxL=document.getElementById('maxL'), maxW=document.getElementById('maxW'), maxH=document.getElementById('maxH');
+const suggestArea=document.getElementById('suggestArea'), suggestBox=document.getElementById('suggestBox'), fitInfo=document.getElementById('fitInfo'), weightInfo=document.getElementById('weightInfo'), capacityInfo=document.getElementById('capacityInfo'), statusPill=document.getElementById('statusPill'), statusText=document.getElementById('statusText');
+const summaryName=document.getElementById('summaryName'), summaryLayers=document.getElementById('summaryLayers'), summaryPlaced=document.getElementById('summaryPlaced'), summaryFill=document.getElementById('summaryFill'), cbmInfo=document.getElementById('cbmInfo');
+const outer=document.getElementById('containerOuter'), inner=document.getElementById('containerInner'), grid=document.getElementById('grid');
+const legend=document.getElementById('layerLegend');
+const itemsBody=document.getElementById('itemsBody');
+const addBtn=document.getElementById('addItem'), clrBtn=document.getElementById('clearItems'), editToggle=document.getElementById('editToggle');
+const iL=document.getElementById('iL'), iW=document.getElementById('iW'), iH=document.getElementById('iH'), iQ=document.getElementById('iQ'), iKg=document.getElementById('iKg');
+
+/* — İkonlu dropdown — */
+function iconSVG(k){const c=CONTAINERS[k],s='#e5e7eb';
+  if(c.kind==="container")return`<svg width="42" height="28" viewBox="0 0 84 56" fill="none" stroke="${s}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="${c.hc?6:10}" width="64" height="${c.hc?36:30}" rx="4"/>${Array.from({length:6}).map((_,i)=>`<line x1="${12+i*10}" y1="${c.hc?8:12}" x2="${12+i*10}" y2="${c.hc?40:40}" />`).join('')}<rect x="0" y="4" width="6" height="${c.hc?44:38}" /><rect x="70" y="4" width="6" height="${c.hc?44:38}" />${c.hc?`<text x="58" y="12" font-size="10" fill="${s}">HC</text>`:''}</svg>`;
+  if(c.kind==="trailer")return`<svg width="42" height="28" viewBox="0 0 84 56" fill="none" stroke="${s}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="${c.mega?8:12}" width="58" height="${c.mega?28:22}" rx="2"/><circle cx="54" cy="44" r="4"/><circle cx="42" cy="44" r="4"/><circle cx="30" cy="44" r="4"/>${c.frigo?`<g stroke-width="2"><line x1="10" y1="16" x2="18" y2="24"/><line x1="18" y1="16" x2="10" y2="24"/><line x1="14" y1="12" x2="14" y2="28"/><line x1="6" y1="20" x2="22" y2="20"/></g>`:''}</svg>`;
+  return`<svg width="42" height="28" viewBox="0 0 84 56" fill="none" stroke="${s}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 36 L20 20 L32 20 L32 32 L66 32 L66 36 Z" /><circle cx="58" cy="44" r="4"/><circle cx="46" cy="44" r="4"/><circle cx="34" cy="44" r="4"/></svg>`;}
+const selTrigger=document.getElementById('selTrigger'), selIcon=document.getElementById('selIcon'), selText=document.getElementById('selText'), selList=document.getElementById('selList');
+function fillSelect(){sel.innerHTML="";ORDER.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=CONTAINERS[k].name;sel.appendChild(o);});sel.value="40HC";
+  selList.innerHTML="";ORDER.forEach(k=>{const it=CONTAINERS[k],item=document.createElement('div');item.className='select-item';
+    const icon=document.createElement('span');icon.className='sel-icon';icon.innerHTML=iconSVG(k);
+    const wrap=document.createElement('div');wrap.style.display='flex';wrap.style.flexDirection='column';
+    const t1=document.createElement('div');t1.textContent=it.name;
+    const t2=document.createElement('div');t2.style.fontSize='11px';t2.style.color='#a8a8b3';t2.textContent=(it.L/100).toFixed(2)+"×"+(it.W/100).toFixed(2)+"×"+(it.H/100).toFixed(2)+" m";
+    wrap.appendChild(t1);wrap.appendChild(t2);item.appendChild(icon);item.appendChild(wrap);
+    item.onclick=()=>{sel.value=k;applyTrigger(k);updateHints();simulate();selList.style.display='none';};
+    selList.appendChild(item);
+  });applyTrigger(sel.value);}
+function applyTrigger(k){selIcon.innerHTML=iconSVG(k);selText.textContent=CONTAINERS[k].name;}
+selTrigger.onclick=()=>{selList.style.display=selList.style.display==='block'?'none':'block';}
+document.addEventListener('click',e=>{if(!document.getElementById('iconSelect').contains(e.target)) selList.style.display='none';});
+
+/* — Helpers — */
+const fmt=(n,d=0)=>(Number(n)||0).toLocaleString("tr-TR",{minimumFractionDigits:d,maximumFractionDigits:d});
+function debounce(fn,ms=120){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);} }
+function unitToCm(v){return unitSel.value==="m"?(+v||0)*100:(+v||0)}
+function cmToUnit(v){return unitSel.value==="m"?(+v||0)/100:(+v||0)}
+function updateHints(){const c=CONTAINERS[sel.value];maxL.textContent=fmt(cmToUnit(c.L),1)+" "+unitSel.value;maxW.textContent=fmt(cmToUnit(c.W),1)+" "+unitSel.value;maxH.textContent=fmt(cmToUnit(c.H),1)+" "+unitSel.value;document.getElementById('maxKg').textContent=(c.maxKg||0).toLocaleString()+" kg";summaryName.textContent=c.name}
+
+/* — Kalem listesi + toplu Düzelt toggle — */
+let ITEMS=[], colorIdx=0, EDIT_ALL=false;
+function rowView(it){const perCbm=(unitToCm(it.L)*unitToCm(it.W)*unitToCm(it.H))/1e6;
+  return `<td><span class="colorDot" style="background:${it.color}"></span>${it.label||""}</td>
+  <td>${fmt(it.L)}×${fmt(it.W)}×${fmt(it.H)} ${unitSel.value}</td>
+  <td>${fmt(it.qty)}</td><td>${fmt(it.kg,1)}</td>
+  <td>${perCbm.toFixed(3)} m³</td>
+  <td><span class="tag" style="background:${it.color};color:#fff;border-color:#000">renk</span></td>
+  <td>
+    <button class="btn btn-sm btn-ghost" data-edit="${it.id}">Düzenle</button>
+    <button class="btn btn-sm btn-danger" data-del="${it.id}">Sil</button>
+  </td>`;}
+function rowEdit(it){return `
+  <td><span class="colorDot" style="background:${it.color}"></span>${it.label||""}</td>
+  <td><input class="input" style="width:120px" data-eL value="${it.L}"> × <input class="input" style="width:120px" data-eW value="${it.W}"> × <input class="input" style="width:120px" data-eH value="${it.H}"> ${unitSel.value}</td>
+  <td><input class="input" style="width:90px" data-eQ value="${it.qty}"></td>
+  <td><input class="input" style="width:90px" data-eKg value="${it.kg}"></td>
+  <td>-</td><td></td>
+  <td>
+    <button class="btn btn-sm" data-save="${it.id}">Kaydet</button>
+    <button class="btn btn-sm btn-ghost" data-cancel="${it.id}">İptal</button>
+  </td>`;}
+function renderItems(){
+  itemsBody.innerHTML="";
+  ITEMS.forEach(it=>{it._editing = EDIT_ALL ? true : it._editing; const tr=document.createElement('tr'); tr.dataset.id=it.id; tr.innerHTML = it._editing?rowEdit(it):rowView(it); itemsBody.appendChild(tr);});
+  // sil
+  itemsBody.querySelectorAll('[data-del]').forEach(b=>{b.onclick=()=>{const id=b.getAttribute('data-del'); ITEMS=ITEMS.filter(x=>x.id!==id); renderItems(); simulate();};});
+  // düzenle
+  itemsBody.querySelectorAll('[data-edit]').forEach(b=>{b.onclick=()=>{const id=b.getAttribute('data-edit'); const it=ITEMS.find(x=>x.id===id); it._editing=true; renderItems();};});
+  // iptal
+  itemsBody.querySelectorAll('[data-cancel]').forEach(b=>{b.onclick=()=>{const id=b.getAttribute('data-cancel'); const it=ITEMS.find(x=>x.id===id); delete it._editing; if(!EDIT_ALL) renderItems(); else renderItems();};});
+  // kaydet
+  itemsBody.querySelectorAll('[data-save]').forEach(b=>{b.onclick=()=>{const id=b.getAttribute('data-save'); const tr=b.closest('tr'); const it=ITEMS.find(x=>x.id===id);
+    const L=+tr.querySelector('[data-eL]').value||0, W=+tr.querySelector('[data-eW]').value||0, H=+tr.querySelector('[data-eH]').value||0, Q=+tr.querySelector('[data-eQ]').value||0, Kg=+tr.querySelector('[data-eKg]').value||0;
+    Object.assign(it,{L:Math.max(0,L),W:Math.max(0,W),H:Math.max(0,H),qty:Math.max(0,Q),kg:Math.max(0,Kg)}); it.label=`${fmt(it.L)}×${fmt(it.W)}×${fmt(it.H)} ${unitSel.value}`; if(!EDIT_ALL) delete it._editing; renderItems(); simulate();};});
+}
+editToggle.onclick=()=>{EDIT_ALL=!EDIT_ALL; editToggle.textContent = EDIT_ALL ? "Düzenleme Bitti" : "Düzelt"; renderItems();};
+addBtn.onclick=()=>{const L=+iL.value||0,W=+iW.value||0,H=+iH.value||0,Q=+iQ.value||0,K=+iKg.value||0; if(!(L>0&&W>0&&H>0&&Q>0)) return;
+  const id="it"+Math.random().toString(36).slice(2,8), label=`${fmt(L)}×${fmt(W)}×${fmt(H)} ${unitSel.value}`, color=ITEM_COLORS[colorIdx++%ITEM_COLORS.length];
+  ITEMS.push({id,label,L,W,H,qty:Q,kg:K,color}); iL.value=iW.value=iH.value=iQ.value=iKg.value=""; renderItems(); simulate();};
+clrBtn.onclick=()=>{ITEMS=[]; renderItems(); simulate();};
+
+/* — Packing — */
+function tryOrientations(L,W,H){return[{l:L,w:W,h:H},{l:L,w:H,h:W},{l:W,w:L,h:H},{l:W,w:H,h:L},{l:H,w:L,h:W},{l:H,w:W,h:L}]}
+function suggestContainer(maxLcm,maxWcm,maxHcm){let best=null; for(const k of ORDER){const c=CONTAINERS[k]; if(c.L>=maxLcm&&c.W>=maxWcm&&c.H>=maxHcm){const vol=c.L*c.W*c.H; if(!best||vol<best.vol) best={key:k,vol};}} return best?best.key:null;}
+function packMixed(container,poolItems){const items=poolItems.map(s=>({...s})).sort((a,b)=>b.Hcm-a.Hcm); const placements=[]; let usedLenX=0,z=0,layer=0;
+  while(true){const left=items.reduce((t,s)=>t+s.left,0); if(left<=0) break; const tallest=items.find(p=>p.left>0); if(!tallest) break;
+    const h=tallest.Hcm; if(z+h>container.H) break; const cand=items.filter(p=>p.left>0&&p.Hcm<=h).sort((a,b)=>(b.Lcm*b.Wcm)-(a.Lcm*a.Wcm)); let y=0;
+    while(y<container.W){let x=0,rowH=0,placed=false; for(let i=0;i<cand.length;i++){const it=cand[i]; if(it.left<=0) continue;
+        const opts=tryOrientations(it.Lcm,it.Wcm,it.Hcm).filter(o=>o.h<=h).sort((a,b)=>a.w-b.w); let chosen=null; for(const o of opts){if(o.l<=container.L-x&&o.w<=container.W-y){chosen=o;break;}}
+        if(!chosen) continue; placements.push({id:it.id,x,y,z,l:chosen.l,w:chosen.w,h,color:it.color,layer}); it.left--; x+=chosen.l; rowH=Math.max(rowH,chosen.w); usedLenX=Math.max(usedLenX,x); placed=true; i--;}
+      if(!placed) break; y+=rowH;}
+    const any=placements.some(p=>p.layer===layer); if(!any) break; z+=h; layer++; if(z>=container.H) break;}
+  return {placements,usedLenX,layers:Math.max(0,...placements.map(p=>p.layer))+1};}
+
+/* — Simülasyon — */
+function simulate(){
+  const c=CONTAINERS[sel.value];
+  [...inner.querySelectorAll('.box')].forEach(n=>n.remove()); legend.innerHTML=""; fitInfo.textContent=""; weightInfo.textContent=""; capacityInfo.textContent=""; cbmInfo.textContent=""; suggestArea.style.display='none'; suggestBox.innerHTML=""; summaryPlaced.textContent="0";
+  if(ITEMS.length===0){statusPill.textContent="Kalem bekleniyor";statusText.textContent="Kalem bekleniyor";summaryLayers.textContent="-";summaryFill.textContent="-";return;}
+  const maxLayers=Math.max(1,+inMaxLayers.value||1);
+
+  // havuz & kontrol
+  let needL=0,needW=0,needH=0,totalWeight=0,totalCBM=0;
+  const pool=ITEMS.map(it=>({id:it.id,label:it.label,color:it.color,kg:it.kg,Lcm:unitToCm(it.L),Wcm:unitToCm(it.W),Hcm:unitToCm(it.H),left:it.qty}));
+  pool.forEach(p=>{needL=Math.max(needL,p.Lcm);needW=Math.max(needW,p.Wcm);needH=Math.max(needH,p.Hcm);totalWeight+=(p.kg||0)*(p.left||0); totalCBM+=(p.Lcm*p.Wcm*p.Hcm/1e6)*(p.left||0);});
+  if(needL>c.L||needW>c.W||needH>c.H){const s=suggestContainer(needL,needW,needH); suggestBox.innerHTML=s?`⚠️ Bazı kalemler <b>${c.name}</b> için büyük. Önerilen: <b>${CONTAINERS[s].name}</b> <button class="btn btn-sm" id="applySuggestion">Uygula</button>`:`❌ Uygun konteyner/dorse bulunamadı.`; suggestArea.style.display='block'; if(s){document.getElementById('applySuggestion').onclick=()=>{sel.value=s;applyTrigger(s);updateHints();simulate();};} statusPill.textContent="Sığmıyor (ölçü)";statusText.textContent="Ölçü aşılıyor";return;}
+
+  /* panel genişliğine göre ölçek */
+  const outerW = document.getElementById('stage').clientWidth;   // sağ panelin tam genişliği
+  const scaleOuter = outerW / c.L;
+  const outerH = Math.max(260, Math.round(c.W * scaleOuter));
+  outer.style.width = outerW + "px";
+  outer.style.height = outerH + "px";
+  document.getElementById('containerOuterFrame').style.borderColor = cropUsed.checked ? "transparent" : "#176b47";
+  const cell = Math.max(34, Math.min(90, Math.round(110*scaleOuter)));
+  grid.style.backgroundSize = cell + "px " + cell + "px";
+
+  const resAll=packMixed(c,pool);
+  let placements=resAll.placements;
+  const layersUsed=resAll.layers;
+  if(layersUsed>maxLayers){placements=placements.filter(p=>p.layer<maxLayers);}
+
+  // kırpma
+  let usedLen=0; placements.forEach(b=> usedLen=Math.max(usedLen,b.x+b.l));
+  const viewLen=cropUsed.checked && usedLen>0?usedLen:c.L;
+  const scaleInner = outerW / viewLen;
+  inner.style.width=Math.round(viewLen*scaleInner)+"px";
+  inner.style.height=Math.round(c.W*scaleInner)+"px";
+
+  // kat rozetleri
+  const finalLayers=Math.max(0,...placements.map(p=>p.layer))+1;
+  for(let z=0;z<finalLayers;z++){const b=document.createElement('span'); b.className='layer-badge'; b.style.background=LAYER_COLORS[z%LAYER_COLORS.length]; b.textContent=`${z+1}. Kat`; legend.appendChild(b);}
+
+  // kutular
+  const baseFont=Math.max(12,Math.min(18,Math.round(scaleInner*0.9)));
+  const gutter=2;
+  placements.forEach(p=>{const div=document.createElement('div'); div.className='box';
+    div.style.width=Math.max(1,Math.round(p.l*scaleInner)-gutter)+"px";
+    div.style.height=Math.max(1,Math.round(p.w*scaleInner)-gutter)+"px";
+    div.style.left=Math.round(p.x*scaleInner)+"px"; div.style.top=Math.round(p.y*scaleInner)+"px";
+    div.style.background=LAYER_COLORS[p.layer%LAYER_COLORS.length]; div.style.fontSize=baseFont+"px";
+    const tl=unitSel.value==="m"?`${(p.l/100).toFixed(2)}×${(p.w/100).toFixed(2)}×${(p.h/100).toFixed(2)} m`:`${Math.round(p.l)}×${Math.round(p.w)}×${Math.round(p.h)} cm`;
+    div.title=`${tl} • Kat ${p.layer+1}`; div.textContent=tl; inner.appendChild(div);});
+
+  // KPI
+  const contVol=c.L*c.W*c.H; let usedVol=0; placements.forEach(pb=> usedVol+=pb.l*pb.w*pb.h);
+  const fillPct=contVol>0?(usedVol/contVol)*100:0;
+  summaryName.textContent=c.name; summaryLayers.textContent=finalLayers||"-"; summaryPlaced.textContent=`${placements.length}`; summaryFill.textContent=`${fmt(fillPct,1)}%`;
+  cbmInfo.innerHTML=`<div class="hint">CBM</div><div style="font-weight:700">${(usedVol/1e6).toFixed(2)} m³ <span class="hint">/ ${(contVol/1e6).toFixed(2)} m³</span></div><div class="hint">Toplam (kalem bazında): ${totalCBM.toFixed(2)} m³</div>`;
+  weightInfo.innerHTML=`Toplam Ağırlık: <span class="${totalWeight>c.maxKg?'badText':'ok'}">${totalWeight.toLocaleString()} kg</span> / Kapasite: ${(c.maxKg||0).toLocaleString()} kg`;
+  if(totalWeight>(c.maxKg||Infinity)){fitInfo.innerHTML=`<span class="badText">⚠️ Ağırlık sınırı aşılıyor.</span>`; statusPill.textContent="Ağırlık aşımı"; statusText.textContent="Ağırlık aşımı";}
+  else {fitInfo.innerHTML=`<span class="ok">✅ Yerleşim hesaplandı.</span>`; statusPill.textContent="Simüle edildi"; statusText.textContent="Simüle edildi";}
+  capacityInfo.innerHTML=`Yerleşen kutu: <b>${placements.length}</b> • Kat: <b>${finalLayers}</b>`;
+}
+
+/* — init — */
+function init(){
+  fillSelect(); const c=CONTAINERS[sel.value];
+  maxL.textContent=fmt(cmToUnit(c.L),1)+" "+unitSel.value; maxW.textContent=fmt(cmToUnit(c.W),1)+" "+unitSel.value; maxH.textContent=fmt(cmToUnit(c.H),1)+" "+unitSel.value; document.getElementById('maxKg').textContent=(c.maxKg||0).toLocaleString()+" kg"; summaryName.textContent=c.name;
+  ITEMS=[{id:"ex1",label:"120×80×14 cm",L:120,W:80,H:14,qty:60,kg:10,color:ITEM_COLORS[0]}];
+  renderItems();
+  const deb=debounce(simulate,120);
+  [sel,unitSel,cropUsed,inMaxLayers].forEach(el=>{el.addEventListener('input',deb);el.addEventListener('change',simulate);});
+  window.addEventListener('resize',simulate);
+  simulate();
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
